@@ -23,7 +23,7 @@ export const fetchPokedex = async () => {
     {}
   );
 };
-
+// Hi Jared
 export const usePokedex = () => {
   return useQuery({ queryKey: [`pokedex`], queryFn: fetchPokedex });
 };
