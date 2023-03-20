@@ -6,21 +6,43 @@ import {
   Icon,
   Fade,
   Flex,
+  Link,
+  Box,
+  Input,
+  useToast,
 } from '@chakra-ui/react';
+import NextLink from 'next/link';
 import { Session } from 'next-auth';
 import { useEffect, useState } from 'react';
-import { FaBars, FaCheck, FaEnvelope, FaSkull } from 'react-icons/fa';
-import { useUserSentAccountRequest } from '../../../hooks/user';
+import { FaCheck, FaEnvelope, FaSearch, FaSkull } from 'react-icons/fa';
+import {
+  fetchUnusedPlayers,
+  normalizeName,
+  SessionUserProfile,
+  useNotSetupProfiles,
+  useSessionUserProfile,
+  useUserSentAccountRequest,
+} from '../../../hooks/user';
 import supabase from '../../../lib/supabase/client';
-import { NotVerifiedIcon, VerifiedIcon } from '../../Player/Icons';
+import { useTwitterLink } from '../../../hooks/twitter';
 
-export const RequestToComplete = ({ session }: { session: Session }) => {
+export const RequestToComplete = ({
+  userProfile,
+}: {
+  userProfile: SessionUserProfile | undefined;
+}) => {
   const [fadeIn, setFadeIn] = useState(false);
+  const [fullNameVal, setFullNameVal] = useState('');
   const { data: userSentRequest } = useUserSentAccountRequest(
-    session.user.email
+    userProfile?.email
   );
+  const toast = useToast();
+  const { refetch } = useSessionUserProfile();
   const [requestSentStatus, setRequestSentStatus] =
-    useState<'before' | 'sending' | 'sent' | 'sent-error'>('before');
+    useState<'before' | 'sending' | 'sent' | 'sent-error' | 'succeed'>(
+      'before'
+    );
+  const myTwitter = useTwitterLink('jgrimesey');
 
   useEffect(() => {
     setFadeIn(true);
@@ -34,10 +56,44 @@ export const RequestToComplete = ({ session }: { session: Session }) => {
 
   const handleSendRequest = async () => {
     setRequestSentStatus('sending');
+
+    const unusedNames = await fetchUnusedPlayers();
+    const finalResultsName = unusedNames?.find(
+      name => normalizeName(name) === normalizeName(fullNameVal)
+    );
+
+    if (finalResultsName) {
+      try {
+        await supabase
+          .from('Account Requests')
+          .delete()
+          .eq('email', userProfile?.email);
+
+        await supabase.from('Player Profiles').insert({
+          name: finalResultsName,
+          email: userProfile?.email,
+        });
+
+        await refetch();
+        setRequestSentStatus('succeed');
+
+        return toast({
+          status: 'success',
+          title: 'Account successfully created!',
+        });
+      } catch {
+        return toast({
+          status: 'error',
+          title: 'Something went wrong.',
+        });
+      }
+    }
+
     const { data, error } = await supabase.from('Account Requests').insert([
       {
-        email: session.user.email,
-        twitter_full_name: session.user.name,
+        email: userProfile?.email,
+        name: userProfile?.name,
+        entered_name: fullNameVal,
       },
     ]);
     if (error) {
@@ -48,51 +104,91 @@ export const RequestToComplete = ({ session }: { session: Session }) => {
   };
 
   return (
-    <Stack
-      padding='1.5rem'
-      spacing={10}
-      justifyContent='space-between'
-      height='100%'
-    >
-      <Heading color='gray.700'>Complete account setup</Heading>
+    <Stack padding='1.5rem' spacing={10} justifyContent='space-between'>
       <Fade in={fadeIn}>
-        <Stack>
-          <Text>{`Send us a request to complete account setup. If you've already sent a request, hang tight!`}</Text>
-          <Flex flexWrap='wrap' gap={2} alignItems='baseline'>
-            <Text>{`Once your request is approved, you'll see the badge next to your profile pic changed from`}</Text>
-            <NotVerifiedIcon />
-            <Text>to</Text>
-            <VerifiedIcon />
-          </Flex>
-        </Stack>
-      </Fade>
-      <Fade in={fadeIn}>
-        <Stack direction={{ base: 'column', sm: 'row' }}>
-          <Button
-            colorScheme={'gray'}
-            variant='solid'
-            leftIcon={
-              requestSentStatus === 'sent' ? (
-                <FaCheck />
-              ) : requestSentStatus === 'sent-error' ? (
-                <FaSkull />
-              ) : (
-                <FaEnvelope />
-              )
-            }
-            isLoading={requestSentStatus === 'sending'}
-            loadingText='Send a request'
-            disabled={
-              requestSentStatus === 'sent' || requestSentStatus === 'sent-error'
-            }
-            onClick={handleSendRequest}
-          >
-            {requestSentStatus === 'sent'
-              ? 'Request sent!'
-              : requestSentStatus === 'sent-error'
-              ? 'Something went wrong'
-              : 'Send a request'}
-          </Button>
+        <Stack spacing={6}>
+          <Heading color='gray.700'>Complete account setup</Heading>
+          {/* <Text as='b'>{`Make sure your Google account name matches your RK9 account name.`}</Text> */}
+          <Text>
+            Please enter your full name <b>exactly as it shows on RK9.</b>
+          </Text>
+          {/* <Box>
+            {`If you're stuck on this page for a while, contact `}
+            <Link
+              isExternal
+              href={useTwitterLink('jgrimesey')}
+              as={NextLink}
+              color='twitter.500'
+            >
+              @jgrimesey
+            </Link>
+            {` and we can figure this out. `}
+          </Box> */}
+          {/* <Flex flexWrap='wrap' gap={2} alignItems='baseline'>
+            <Box>
+              {`Once your request is approved, you'll see the badge next to your profile pic changed from`}{' '}
+              <Box paddingX={2} display='inline'>
+                <NotVerifiedIcon />
+              </Box>
+              to
+              <Box paddingX={2} display='inline'>
+                <VerifiedIcon />
+              </Box>
+            </Box>
+          </Flex> */}
+          <Input
+            placeholder='Full name as it shows on RK9'
+            value={fullNameVal || userSentRequest || ''}
+            onChange={e => setFullNameVal(e.target.value)}
+            isDisabled={requestSentStatus === 'sent'}
+          />
+          <Stack direction={{ base: 'column', sm: 'row' }}>
+            <Button
+              colorScheme={'gray'}
+              variant='solid'
+              leftIcon={
+                requestSentStatus === 'sent' ? (
+                  <FaCheck />
+                ) : requestSentStatus === 'sent-error' ? (
+                  <FaSkull />
+                ) : undefined
+              }
+              isLoading={requestSentStatus === 'sending'}
+              loadingText='Submit'
+              isDisabled={
+                requestSentStatus === 'sent' ||
+                requestSentStatus === 'sent-error' ||
+                requestSentStatus === 'succeed' ||
+                fullNameVal.length === 0
+              }
+              onClick={handleSendRequest}
+            >
+              {requestSentStatus === 'sent'
+                ? 'Request sent!'
+                : requestSentStatus === 'sent-error'
+                ? 'Something went wrong'
+                : requestSentStatus === 'succeed'
+                ? 'Account created!'
+                : 'Submit'}
+            </Button>
+          </Stack>
+          {requestSentStatus === 'sent' && (
+            <Stack>
+              <Text>{`We couldn't find anyone with that name on RK9. `}</Text>
+              <Box>
+                {`We went ahead and made a request for you. In the meantime, you can message `}
+                <Link
+                  isExternal
+                  href={myTwitter}
+                  as={NextLink}
+                  color='twitter.500'
+                >
+                  @jgrimesey
+                </Link>
+                {` on Twitter and we can figure this out.`}
+              </Box>
+            </Stack>
+          )}
         </Stack>
       </Fade>
     </Stack>

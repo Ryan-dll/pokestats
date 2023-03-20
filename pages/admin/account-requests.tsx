@@ -20,14 +20,13 @@ export default function AccountRequestsPage() {
   const { data: accountRequests } = useAccountRequests();
 
   useEffect(() => {
-    console.log(userIsAdminLoading, userIsAdmin);
     if (!userIsAdmin && !userIsAdminLoading) {
       router.push('/');
     }
   }, [userIsAdmin, userIsAdminLoading, router]);
 
   return (
-    <Stack padding='0.5rem 1.5rem'>
+    <Stack>
       <Heading size='sm'>
         {accountRequests?.length} request{accountRequests?.length !== 1 && 's'}
       </Heading>

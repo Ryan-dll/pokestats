@@ -1,58 +1,67 @@
-import { Icon, Stack, Text, Link, Heading } from '@chakra-ui/react';
+import { Stack, Text, Link, Heading } from '@chakra-ui/react';
 import NextLink from 'next/link';
 import { useCallback } from 'react';
-import { FaRunning } from 'react-icons/fa';
 import { Standing } from '../../../../../types/tournament';
-import { formatRecord } from './helpers';
+import { formatRecord, madeDayTwo } from './helpers';
 
 export const Record = ({
   standing,
   href,
   big,
+  normal,
 }: {
   standing: Standing;
   href?: string;
   big?: boolean;
+  normal?: boolean;
 }) => {
   const renderRecordText = useCallback(() => {
     if (href) {
       return (
         <Link
           as={NextLink}
-          color={standing.drop ? 'red.600' : 'blue.600'}
+          color={standing.drop && standing.drop > 0 ? 'red.600' : 'blue.600'}
           href={href}
         >
-          <Text>{formatRecord(standing.record)}</Text>
+          <Text fontSize='md' whiteSpace={'nowrap'}>
+            {formatRecord(standing.record)}
+          </Text>
         </Link>
       );
     }
 
     if (big) {
       return (
-        <Heading color={standing.drop ? 'red.600' : 'gray.700'}>
+        <Heading
+          color={standing.drop && standing.drop > 0 ? 'red.600' : 'gray.700'}
+        >
           {formatRecord(standing.record)}
         </Heading>
       );
     }
 
-    return <Text>{formatRecord(standing.record)}</Text>;
-  }, [href, standing.record, standing.drop, big]);
-
-  if (standing.drop) {
     return (
-      <Stack
-        direction='row'
-        color={'red.600'}
-        spacing={1}
-        alignItems={big ? 'baseline' : 'center'}
+      <Text
+        fontSize={normal ? 'lg' : '0.95rem'}
+        fontFamily={normal ? 'inherit' : 'mono'}
+        whiteSpace={'nowrap'}
       >
-        {renderRecordText()}
-        <Icon as={FaRunning} />
-      </Stack>
+        {formatRecord(standing.record)}
+      </Text>
     );
-  }
+  }, [href, standing.record, standing.drop, big, normal]);
 
-  return renderRecordText();
+  return (
+    <Stack
+      direction='row'
+      color={standing.drop && standing.drop > 0 ? 'red.600' : 'auto'}
+      spacing={1}
+      alignItems={big ? 'baseline' : 'center'}
+      justifyContent='space-between'
+    >
+      {renderRecordText()}
+    </Stack>
+  );
 };
 
 Record.displayName = 'Record';
